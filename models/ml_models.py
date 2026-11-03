@@ -149,7 +149,18 @@ class CyberMLModelHub:
         fp_sum = int(np.sum(FP))
         fn_sum = int(np.sum(FN))
 
-        report = classification_report(y_test, y_pred, target_names=class_names, output_dict=True, zero_division=0)
+        # Safe classification report supporting sparse class subsets
+        labels_param = list(range(len(class_names))) if class_names else None
+        try:
+            report = classification_report(
+                y_test, y_pred,
+                labels=labels_param,
+                target_names=class_names if labels_param else None,
+                output_dict=True,
+                zero_division=0
+            )
+        except Exception:
+            report = classification_report(y_test, y_pred, output_dict=True, zero_division=0)
         
         # Feature importances if available
         feature_importance = None

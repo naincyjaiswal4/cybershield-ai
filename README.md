@@ -19,7 +19,8 @@ Modern enterprise networks face thousands of anomalous connections and zero-day 
 4. **Zero-Day Anomaly Detection:** An unsupervised **Autoencoder** trained strictly on normal baseline traffic to detect unknown intrusions through Mean Squared Reconstruction Error thresholds.
 5. **Dynamic Threat Severity Engine:** Calibrated 0-100 **Cyber Risk Score** mapping threats to **Low (0-25)**, **Medium (26-50)**, **High (51-75)**, and **Critical (76-100)** tiers aligned with the **MITRE ATT&CK® Framework**.
 6. **Explainable AI (XAI) Forensics:** Attribution graphs and plain-language reasoning describing *why* specific network packets were flagged as hostile.
-7. **Viva Presentation Mode & Reports:** Built-in presentation mode for faculty evaluation, downloadable forensic PDF reports, and exported prediction CSV logs.
+7. **Threat Intelligence PDF Ingestion & IoC Forensics:** Multi-engine PDF pipeline extracting multi-page text, tabular network telemetry, Indicators of Compromise (IPv4, IPv6, CVEs, MITRE ATT&CK techniques, domains, hashes), and AI threat classification.
+8. **Presentation Mode & Reports:** Built-in presentation mode for faculty evaluation, downloadable forensic PDF reports, and exported prediction CSV logs.
 
 ---
 
@@ -77,6 +78,7 @@ cybershield-ai/
 │
 ├── utils/
 │   ├── __init__.py
+│   ├── pdf_processor.py              # Multi-engine PDF extractor, table parser & IoC analyzer
 │   ├── dataset_loader.py             # Schema detection & attack taxonomy mapping
 │   ├── preprocessor.py               # Preprocessing pipeline & single packet transformation
 │   ├── severity_engine.py            # Calibrated 0-100 risk score (Low, Med, High, Crit)

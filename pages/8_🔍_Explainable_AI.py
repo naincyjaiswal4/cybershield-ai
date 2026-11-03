@@ -45,6 +45,10 @@ data = st.session_state.preprocessed_data
 classes = data['target_classes']
 
 # Classifier setup
+if data.get('y_train') is None or len(classes) == 0:
+    st.info("ℹ️ Explainable AI feature attribution requires a trained supervised classifier.\n\nThe active dataset contains unlabeled telemetry. For explainability and classification results, please select or upload a dataset with attack labels or evaluate anomalies via the Autoencoder.")
+    st.stop()
+
 if "active_classifier" not in st.session_state:
     if "trained_models" in st.session_state and len(st.session_state.trained_models) > 0:
         first_model_name = list(st.session_state.trained_models.keys())[0]
@@ -67,7 +71,8 @@ st.subheader("Interactive Packet Inspector & Attribution Engine")
 # Get or generate simulated results
 if "simulated_results" not in st.session_state or len(st.session_state.simulated_results) == 0:
     st.info("No packets currently in memory. Loading sample network flows for inspection...")
-    sampled_indices = np.random.choice(len(df), size=30, replace=False)
+    sample_count = min(30, len(df))
+    sampled_indices = np.random.choice(len(df), size=sample_count, replace=(len(df) < 30))
     sample_df = df.iloc[sampled_indices].copy()
     stream_records = []
     for idx, row in sample_df.iterrows():

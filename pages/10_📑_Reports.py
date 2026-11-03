@@ -1,22 +1,27 @@
 """
-CyberShield AI - Forensic Threat Report, CSV Exporter & Project Conclusion
-Allows downloading executive PDF reports, CSV prediction datasets with threat scores, and reviews final project conclusions.
+CyberShield AI - Security Reports & Forensic Intelligence Export Hub
+Generates multi-page PDF Executive Summary Reports, CSV Prediction Results, and JSON Incident Feeds.
+Integrates ML benchmarks, anomaly detection scores, alert telemetry, and PDF forensics.
 """
 
 import streamlit as st
 import pandas as pd
 import numpy as np
 
-from utils.ui_components import apply_cyber_theme, render_header, render_metric_card
-from utils.report_generator import generate_pdf_report, export_dataframe_to_csv, export_json_report
+from utils.ui_components import (
+    apply_cyber_theme, render_header, render_metric_card
+)
+from utils.report_generator import (
+    generate_pdf_report, export_dataframe_to_csv, export_alerts_to_json
+)
 
-st.set_page_config(page_title="Reports & Conclusion - CyberShield AI", page_icon="📑", layout="wide")
+st.set_page_config(page_title="Security Reports - CyberShield AI", page_icon="📑", layout="wide")
 apply_cyber_theme()
 
 render_header(
-    title="Incident Intelligence & Forensic Reports",
-    subtitle="Export executive PDF incident summaries, CSV telemetry prediction logs, and review final project evaluation findings.",
-    status_tag="Report Generation"
+    title="Executive Reports & Forensic Asset Export",
+    subtitle="Generate audit-ready PDF executive briefings, download ML prediction telemetry, and export real-time incident alerts.",
+    status_tag="Compliance & Forensics"
 )
 
 if "current_dataset" not in st.session_state:
@@ -29,9 +34,13 @@ alerts = [r.get("alert") for r in st.session_state.get("simulated_results", []) 
 
 # Calculate Summary Stats
 total_packets = len(df)
-normal_count = int((df['attack_category'] == 'Normal').sum()) if 'attack_category' in df.columns else int((df['label'] == 0).sum()) if 'label' in df.columns else int((df['label'].astype(str).str.lower().isin(['normal', '0', 'benign'])).sum()) if 'label' in df.columns else 0
-malicious_count = total_packets - normal_count
-threat_pct = (malicious_count / total_packets * 100) if total_packets > 0 else 0.0
+if "auto_threat_results" in st.session_state and st.session_state.auto_threat_results is not None:
+    normal_count = st.session_state.auto_threat_results.get("normal_count", 0)
+    malicious_count = st.session_state.auto_threat_results.get("threat_count", 0)
+else:
+    normal_count = int((df['attack_category'] == 'Normal').sum()) if 'attack_category' in df.columns else int((df['label'] == 0).sum()) if 'label' in df.columns else 0
+    malicious_count = total_packets - normal_count
+threat_pct = (malicious_count / max(1, total_packets) * 100) if total_packets > 0 else 0.0
 
 simulated_results = st.session_state.get("simulated_results", [])
 if simulated_results and any("risk_score" in r for r in simulated_results):
@@ -75,7 +84,10 @@ with col_pdf:
     """, unsafe_allow_html=True)
     
     try:
-        pdf_bytes = generate_pdf_report(summary_stats, alerts=alerts, model_metrics=metrics_dict)
+        pdf_intel = st.session_state.get('pdf_analysis_result', {}).get('analysis') if st.session_state.get('pdf_analysis_result') else None
+        if pdf_intel and 'filename' not in pdf_intel:
+            pdf_intel['filename'] = st.session_state.get('pdf_analysis_result', {}).get('filename', 'Threat Report.pdf')
+        pdf_bytes = generate_pdf_report(summary_stats, alerts=alerts, model_metrics=metrics_dict, pdf_intel=pdf_intel)
         st.download_button(
             label="Download PDF Report",
             data=pdf_bytes,
@@ -117,83 +129,22 @@ with col_csv:
         use_container_width=True
     )
 
-# 3. JSON Export
+# 3. JSON Real-Time Incident Stream
 with col_json:
     st.markdown("""
     <div class="content-card">
-        <div style="font-size: 15px; font-weight: 600; color: #16A34A; margin-bottom: 6px;">SIEM Telemetry Feed (JSON)</div>
+        <div style="font-size: 15px; font-weight: 600; color: #F59E0B; margin-bottom: 6px;">Incident Telemetry (JSON)</div>
         <div style="font-size: 13px; color: #64748B; margin-bottom: 12px; line-height: 1.5;">
-            Structured JSON payload containing session statistics, model benchmarks, and alert payloads for Splunk / Elastic SIEM.
+            Export live SIEM/SOC alert payloads with IP origins, MITRE ATT&CK techniques, and recommended mitigation actions.
         </div>
     </div>
     """, unsafe_allow_html=True)
     
-    export_payload = {
-        "summary": summary_stats,
-        "model_performance": {
-            k: {
-                "accuracy": round(v.get("accuracy", 0), 4),
-                "f1_score": round(v.get("f1", 0), 4),
-                "roc_auc": round(v.get("roc_auc", 0), 4)
-            } for k, v in metrics_dict.items()
-        },
-        "alerts_sample": alerts[:10] if alerts else []
-    }
-    json_str = export_json_report(export_payload)
+    json_bytes = export_alerts_to_json(alerts)
     st.download_button(
-        label="Download SIEM JSON Feed",
-        data=json_str,
-        file_name="CyberShield_AI_SIEM_Feed.json",
+        label="Download Alert Stream JSON",
+        data=json_bytes,
+        file_name="CyberShield_AI_Incident_Stream.json",
         mime="application/json",
         use_container_width=True
     )
-
-st.markdown("<br>", unsafe_allow_html=True)
-
-# Model Evaluation Summary Table
-st.subheader("Model Evaluation Performance Summary")
-
-if metrics_dict:
-    perf_df = pd.DataFrame([{
-        "Model Architecture": k,
-        "Accuracy": f"{v.get('accuracy', 0)*100:.2f}%",
-        "Precision": f"{v.get('precision', 0)*100:.2f}%",
-        "Recall": f"{v.get('recall', 0)*100:.2f}%",
-        "F1-Score": f"{v.get('f1', 0)*100:.2f}%",
-        "ROC-AUC": f"{v.get('roc_auc', 0):.3f}",
-        "Training Time": f"{v.get('training_time', 0.05):.3f}s"
-    } for k, v in metrics_dict.items()])
-    st.dataframe(perf_df, use_container_width=True)
-else:
-    st.info("Train ML or Deep Learning models in their respective modules to populate performance benchmarks.")
-
-st.markdown("<br>", unsafe_allow_html=True)
-
-# Project Conclusion Page Section
-st.subheader("Project Conclusion & Academic Evaluation Findings")
-
-col_concl1, col_concl2 = st.columns(2)
-
-with col_concl1:
-    st.markdown("""
-    <div class="content-card">
-        <div style="font-size: 15px; font-weight: 600; color: #16A34A; margin-bottom: 6px;">Key Research Insights</div>
-        <div style="font-size: 13px; color: #475569; line-height: 1.6;">
-            • <b>High Detection Precision:</b> Ensemble learning methods (Random Forest and XGBoost) outperformed linear baselines, achieving >98% accuracy and F1-score.<br>
-            • <b>Zero-Day Resilience:</b> The Unsupervised Autoencoder successfully separated unknown malicious deviations using reconstruction error without prior attack signatures.<br>
-            • <b>Explainability:</b> Feature attribution demystified black-box predictions, allowing SOC analysts to verify root-cause network indicators (e.g. SYN error rate, connection flag states).
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-with col_concl2:
-    st.markdown("""
-    <div class="content-card">
-        <div style="font-size: 15px; font-weight: 600; color: #2563EB; margin-bottom: 6px;">Future Scope & Enhancements</div>
-        <div style="font-size: 13px; color: #475569; line-height: 1.6;">
-            • <b>Edge Deployment:</b> Quantization and lightweight deployment onto edge IoT gateways for real-time packet filtering.<br>
-            • <b>Federated Learning:</b> Collaborative threat model training across multiple decentralized enterprise networks without sharing private packet payloads.<br>
-            • <b>Transformer Architectures:</b> Integrating temporal attention mechanisms (e.g. TabNet, Temporal Transformers) for long-duration persistent APT campaigns.
-        </div>
-    </div>
-    """, unsafe_allow_html=True)

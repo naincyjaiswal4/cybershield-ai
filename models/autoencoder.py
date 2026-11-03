@@ -3,6 +3,7 @@ CyberShield AI - Autoencoder Anomaly Detection Engine
 Trained on Normal network traffic; detects zero-day attacks & unknown intrusions via Reconstruction Error.
 """
 
+import time
 import numpy as np
 from sklearn.metrics import roc_curve, auc, precision_recall_fscore_support
 
@@ -22,6 +23,7 @@ class CyberAutoencoder:
         self.threshold = 0.05
         self.history = {"epoch": [], "loss": []}
         self.is_trained = False
+        self.training_time = 0.0
         self._init_weights()
 
     def _init_weights(self):
@@ -68,6 +70,7 @@ class CyberAutoencoder:
         """
         Trains Autoencoder strictly on Normal network traffic.
         """
+        start_time = time.perf_counter()
         self.input_dim = X_normal.shape[1]
         self._init_weights()
         epochs = epochs or self.epochs
@@ -148,6 +151,7 @@ class CyberAutoencoder:
         # Set Anomaly Threshold as the 95th percentile of normal reconstruction error
         train_errors = self.compute_reconstruction_error(X_normal)
         self.threshold = float(np.percentile(train_errors, 95))
+        self.training_time = time.perf_counter() - start_time
         self.is_trained = True
         return self.history
 
@@ -166,11 +170,35 @@ class CyberAutoencoder:
         
         return predictions, errors, anomaly_scores
 
-    def evaluate(self, X_test, y_test_binary, custom_threshold=None):
-        """Computes ROC-AUC, FPR, TPR, and classification metrics for anomaly detection."""
+    def evaluate(self, X_test, y_test_binary=None, custom_threshold=None):
+        """Computes ROC-AUC, FPR, TPR, and classification metrics for anomaly detection. Gracefully handles unlabeled data."""
         preds, errors, scores = self.detect_anomalies(X_test, custom_threshold)
+        threshold_val = float(custom_threshold if custom_threshold is not None else self.threshold)
         
-        # Binary confusion components
+        if y_test_binary is None:
+            # Unlabeled evaluation
+            normal_cnt = int(np.sum(preds == 0))
+            anomaly_cnt = int(np.sum(preds == 1))
+            return {
+                "has_ground_truth": False,
+                "accuracy": None,
+                "precision": None,
+                "recall": None,
+                "f1": None,
+                "roc_auc": None,
+                "fpr": None,
+                "tpr": None,
+                "errors": errors,
+                "predictions": preds,
+                "anomaly_scores": scores,
+                "threshold": threshold_val,
+                "training_time": float(round(self.training_time, 4)),
+                "normal_count": normal_cnt,
+                "anomaly_count": anomaly_cnt,
+                "tp": None, "tn": None, "fp": None, "fn": None
+            }
+
+        # Binary confusion components with ground truth
         tp = np.sum((preds == 1) & (y_test_binary == 1))
         tn = np.sum((preds == 0) & (y_test_binary == 0))
         fp = np.sum((preds == 1) & (y_test_binary == 0))
@@ -194,6 +222,7 @@ class CyberAutoencoder:
             fpr, tpr, roc_auc = None, None, None
         
         return {
+            "has_ground_truth": True,
             "accuracy": float(acc),
             "precision": float(prec),
             "recall": float(rec),
@@ -204,7 +233,8 @@ class CyberAutoencoder:
             "errors": errors,
             "predictions": preds,
             "anomaly_scores": scores,
-            "threshold": custom_threshold or self.threshold,
+            "threshold": threshold_val,
+            "training_time": float(round(self.training_time, 4)),
             "tp": int(tp),
             "tn": int(tn),
             "fp": int(fp),

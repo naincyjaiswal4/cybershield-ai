@@ -1,6 +1,7 @@
 """
 CyberShield AI - Exploratory Data Analysis (EDA) Dashboard
 Interactive cybersecurity visualizations for protocol distributions, attack types, correlation heatmaps, and feature importance.
+Adaptive across NSL-KDD, CICIDS2017, and custom network telemetry datasets.
 """
 
 import streamlit as st
@@ -57,6 +58,8 @@ with tab_threats:
             fig_bar.update_layout(**plotly_layout)
             fig_bar.update_layout(showlegend=False)
             st.plotly_chart(fig_bar, use_container_width=True)
+        else:
+            st.info("ℹ️ Unlabeled Network Telemetry: No ground-truth attack category labels present in this dataset. Threat distribution can be analyzed via the Anomaly Detection module.")
             
     with col2:
         if 'attack_type' in df.columns:
@@ -71,39 +74,63 @@ with tab_threats:
             )
             fig_sub.update_layout(**plotly_layout)
             st.plotly_chart(fig_sub, use_container_width=True)
+        else:
+            cat_target = 'attack_category' if 'attack_category' in df.columns else 'label' if 'label' in df.columns else None
+            if cat_target:
+                p_counts = df[cat_target].value_counts().reset_index()
+                p_counts.columns = ['Class', 'Count']
+                fig_pie_gen = px.pie(
+                    p_counts, values='Count', names='Class',
+                    title="Target Class Proportion",
+                    hole=0.4
+                )
+                fig_pie_gen.update_layout(**plotly_layout)
+                st.plotly_chart(fig_pie_gen, use_container_width=True)
+            else:
+                st.caption("Detailed attack sub-types not available in this telemetry schema.")
 
 # 2. Protocol & Service Telemetry
 with tab_protocols:
     c1, c2 = st.columns(2)
     
     with c1:
-        if 'protocol_type' in df.columns and 'attack_category' in df.columns:
-            ct = pd.crosstab(df['protocol_type'], df['attack_category']).reset_index()
-            ct_melted = pd.melt(ct, id_vars=['protocol_type'], value_name='Count')
-            
-            fig_proto = px.bar(
-                ct_melted, x='protocol_type', y='Count', color='attack_category',
-                barmode='group',
-                title="Protocol Types vs Attack Categories",
-                labels={'protocol_type': 'Network Protocol', 'Count': 'Number of Packets'},
-                color_discrete_map={'Normal': '#16A34A', 'DoS': '#DC2626', 'Probe': '#F59E0B', 'R2L': '#7C3AED', 'U2R': '#991B1B'}
-            )
+        proto_col = next((c for c in ['protocol_type', 'protocol', 'proto'] if c in df.columns), None)
+        if proto_col:
+            if 'attack_category' in df.columns:
+                ct = pd.crosstab(df[proto_col], df['attack_category']).reset_index()
+                ct_melted = pd.melt(ct, id_vars=[proto_col], value_name='Count')
+                fig_proto = px.bar(
+                    ct_melted, x=proto_col, y='Count', color='attack_category',
+                    barmode='group',
+                    title=f"Protocols ({proto_col}) vs Attack Categories",
+                    labels={proto_col: 'Network Protocol', 'Count': 'Number of Packets'},
+                    color_discrete_map={'Normal': '#16A34A', 'DoS': '#DC2626', 'Probe': '#F59E0B', 'R2L': '#7C3AED', 'U2R': '#991B1B'}
+                )
+            else:
+                p_df = df[proto_col].value_counts().reset_index()
+                p_df.columns = [proto_col, 'Count']
+                fig_proto = px.bar(p_df, x=proto_col, y='Count', color=proto_col, title=f"Protocol Distribution ({proto_col})")
             fig_proto.update_layout(**plotly_layout)
             st.plotly_chart(fig_proto, use_container_width=True)
+        else:
+            st.info("No specific protocol type column ('protocol_type' / 'proto') detected in active schema.")
             
     with c2:
-        if 'service' in df.columns:
-            top_services = df['service'].value_counts().head(8).index
-            df_top_srv = df[df['service'].isin(top_services)]
+        srv_col = next((c for c in ['service', 'dst_port', 'destination_port', 'port'] if c in df.columns), None)
+        if srv_col:
+            top_services = df[srv_col].value_counts().head(8).index
+            df_top_srv = df[df[srv_col].isin(top_services)]
             
             fig_srv = px.histogram(
-                df_top_srv, x='service', color='attack_category' if 'attack_category' in df.columns else None,
-                title="Top Targeted Network Services",
-                labels={'service': 'Service Port / Protocol'},
+                df_top_srv, x=srv_col, color='attack_category' if 'attack_category' in df.columns else None,
+                title=f"Top Targeted Services / Ports ({srv_col})",
+                labels={srv_col: 'Service / Port'},
                 color_discrete_map={'Normal': '#16A34A', 'DoS': '#DC2626', 'Probe': '#F59E0B', 'R2L': '#7C3AED', 'U2R': '#991B1B'}
             )
             fig_srv.update_layout(**plotly_layout)
             st.plotly_chart(fig_srv, use_container_width=True)
+        else:
+            st.info("No specific network service or destination port column detected in active schema.")
 
 # 3. Correlation Heatmap
 with tab_correlations:
@@ -111,7 +138,7 @@ with tab_correlations:
     selected_num_cols = st.multiselect(
         "Select numerical features for correlation matrix:",
         options=list(numeric_df.columns),
-        default=list(numeric_df.columns)[:10]
+        default=list(numeric_df.columns)[:min(10, len(numeric_df.columns))]
     )
     
     if len(selected_num_cols) > 1:
@@ -143,12 +170,11 @@ with tab_importance:
                 y = df['attack_category'].astype('category').cat.codes
                 X = df[numeric_cols].drop(columns=['dst_port'], errors='ignore')
             else:
-                y = np.zeros(len(df))
+                y = None
                 X = df[numeric_cols]
                 
-            unique_classes = np.unique(y)
-            if len(unique_classes) < 2:
-                st.warning("Feature Importance and Classification Metrics require at least 2 target classes.")
+            if y is None or len(np.unique(y)) < 2:
+                st.warning("Supervised Feature Importance requires at least 2 target classes. For unlabeled telemetry, use variance metrics.")
             else:
                 rf = RandomForestClassifier(n_estimators=50, max_depth=10, random_state=42, n_jobs=-1)
                 rf.fit(X.fillna(0), y)
@@ -171,26 +197,49 @@ with tab_importance:
 # 5. Traffic Flow Metrics
 with tab_flows:
     c1, c2 = st.columns(2)
+    sample_df = df.sample(min(1000, len(df)), random_state=42) if len(df) > 0 else df
+    
+    # Adaptive Flow Scatter 1
+    if 'src_bytes' in df.columns and 'dst_bytes' in df.columns:
+        x1, y1, title1, log_s1 = 'src_bytes', 'dst_bytes', "Source Bytes vs Destination Bytes (Log Scale)", True
+    elif 'total_fwd_packets' in df.columns and 'total_backward_packets' in df.columns:
+        x1, y1, title1, log_s1 = 'total_fwd_packets', 'total_backward_packets', "Total Fwd Packets vs Backward Packets", False
+    else:
+        num_cols = list(df.select_dtypes(include=[np.number]).columns)
+        x1, y1, title1, log_s1 = (num_cols[0], num_cols[1], f"{num_cols[0]} vs {num_cols[1]}", False) if len(num_cols) >= 2 else (None, None, "", False)
+
     with c1:
-        if 'src_bytes' in df.columns and 'dst_bytes' in df.columns:
-            sample_df = df.sample(min(1000, len(df)), random_state=42)
+        if x1 and y1:
             fig_scatter = px.scatter(
-                sample_df, x='src_bytes', y='dst_bytes',
+                sample_df, x=x1, y=y1,
                 color='attack_category' if 'attack_category' in df.columns else None,
-                log_x=True, log_y=True,
-                title="Source Bytes vs Destination Bytes (Log Scale)",
+                log_x=log_s1, log_y=log_s1,
+                title=title1,
                 color_discrete_map={'Normal': '#16A34A', 'DoS': '#DC2626', 'Probe': '#F59E0B', 'R2L': '#7C3AED', 'U2R': '#991B1B'}
             )
             fig_scatter.update_layout(**plotly_layout)
             st.plotly_chart(fig_scatter, use_container_width=True)
+        else:
+            st.info("Insufficient numeric features to render flow scatter plot.")
             
+    # Adaptive Flow Scatter 2
+    if 'serror_rate' in df.columns and 'rerror_rate' in df.columns:
+        x2, y2, title2 = 'serror_rate', 'rerror_rate', "SYN Error Rate vs REJ Error Rate"
+    elif 'flow_duration' in df.columns and 'flow_bytes_s' in df.columns:
+        x2, y2, title2 = 'flow_duration', 'flow_bytes_s', "Flow Duration vs Flow Bytes/s"
+    else:
+        num_cols = list(df.select_dtypes(include=[np.number]).columns)
+        x2, y2, title2 = (num_cols[-2], num_cols[-1], f"{num_cols[-2]} vs {num_cols[-1]}") if len(num_cols) >= 4 else (None, None, "")
+
     with c2:
-        if 'serror_rate' in df.columns and 'rerror_rate' in df.columns:
+        if x2 and y2:
             fig_err = px.scatter(
-                sample_df, x='serror_rate', y='rerror_rate',
+                sample_df, x=x2, y=y2,
                 color='attack_category' if 'attack_category' in df.columns else None,
-                title="SYN Error Rate vs REJ Error Rate",
+                title=title2,
                 color_discrete_map={'Normal': '#16A34A', 'DoS': '#DC2626', 'Probe': '#F59E0B', 'R2L': '#7C3AED', 'U2R': '#991B1B'}
             )
             fig_err.update_layout(**plotly_layout)
             st.plotly_chart(fig_err, use_container_width=True)
+        else:
+            st.caption("Secondary flow correlation attributes not detected.")

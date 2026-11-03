@@ -5,9 +5,13 @@ Provides epoch-level loss/accuracy curves, validation tracking, and multi-class 
 """
 
 import os
+import time
 import joblib
 import numpy as np
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix, classification_report
+from sklearn.metrics import (
+    accuracy_score, precision_score, recall_score, f1_score,
+    confusion_matrix, classification_report, roc_auc_score
+)
 
 
 class CyberDeepNeuralNetwork:
@@ -33,6 +37,7 @@ class CyberDeepNeuralNetwork:
             "val_acc": []
         }
         self.is_trained = False
+        self.training_time = 0.0
         self._init_weights()
 
     def _init_weights(self):
@@ -99,8 +104,10 @@ class CyberDeepNeuralNetwork:
         """
         Trains the Deep Neural Network using mini-batch Adam/SGD optimizer and tracks history.
         """
+        start_time = time.perf_counter()
         self.input_dim = X_train.shape[1]
-        self.num_classes = len(np.unique(y_train)) if len(np.unique(y_train)) > 2 else max(2, len(np.unique(y_train)))
+        max_class_idx = int(np.max(y_train)) if len(y_train) > 0 else 1
+        self.num_classes = max(max_class_idx + 1, self.num_classes, 2)
         self._init_weights()
         
         y_train_oh = self._one_hot(y_train, self.num_classes)
@@ -175,6 +182,7 @@ class CyberDeepNeuralNetwork:
             self.history["train_acc"].append(float(train_acc))
             self.history["val_acc"].append(float(val_acc))
 
+        self.training_time = time.perf_counter() - start_time
         self.is_trained = True
         return self.history
 
@@ -196,15 +204,49 @@ class CyberDeepNeuralNetwork:
         rec = recall_score(y_test, preds, average='weighted', zero_division=0)
         f1 = f1_score(y_test, preds, average='weighted', zero_division=0)
         cm = confusion_matrix(y_test, preds)
-        report = classification_report(y_test, preds, target_names=class_names, output_dict=True, zero_division=0)
+        # Safe classification report supporting sparse class subsets
+        labels_param = list(range(len(class_names))) if class_names else None
+        try:
+            report = classification_report(
+                y_test, preds,
+                labels=labels_param,
+                target_names=class_names if labels_param else None,
+                output_dict=True,
+                zero_division=0
+            )
+        except Exception:
+            report = classification_report(y_test, preds, output_dict=True, zero_division=0)
+
+        # Calculate TP, TN, FP, FN
+        FP = cm.sum(axis=0) - np.diag(cm)
+        FN = cm.sum(axis=1) - np.diag(cm)
+        TP = np.diag(cm)
+        TN = cm.sum() - (FP + FN + TP)
+
+        # ROC-AUC calculation
+        try:
+            if probs.shape[1] == 2:
+                roc_auc = float(roc_auc_score(y_test, probs[:, 1]))
+            elif len(np.unique(y_test)) >= 2:
+                roc_auc = float(roc_auc_score(y_test, probs, multi_class='ovr', average='weighted'))
+            else:
+                roc_auc = None
+        except Exception:
+            roc_auc = None
 
         return {
             "accuracy": float(acc),
             "precision": float(prec),
             "recall": float(rec),
             "f1": float(f1),
+            "roc_auc": roc_auc,
+            "training_time": float(round(self.training_time, 4)),
             "confusion_matrix": cm,
             "classification_report": report,
+            "tp": int(np.sum(TP)),
+            "tn": int(np.sum(TN)),
+            "fp": int(np.sum(FP)),
+            "fn": int(np.sum(FN)),
             "history": self.history,
             "y_pred": preds,
             "y_proba": probs

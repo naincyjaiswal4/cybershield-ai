@@ -1,7 +1,8 @@
 """
 CyberShield AI - Autoencoder Anomaly Detection Hub
-Unsupervised intrusion detection trained exclusively on Normal baseline traffic.
+Unsupervised intrusion detection trained on baseline traffic.
 Flags zero-day attacks and stealth network anomalies via Mean Squared Reconstruction Error.
+Supports both labeled benchmark validation and unlabeled network telemetry streams.
 """
 
 import streamlit as st
@@ -39,32 +40,39 @@ if "preprocessed_data" not in st.session_state or st.session_state.preprocessed_
 data = st.session_state.preprocessed_data
 X_train, X_test = data['X_train'], data['X_test']
 y_train, y_test = data['y_train'], data['y_test']
-classes = data['target_classes']
+classes = data.get('target_classes', [])
 plotly_layout = get_plotly_theme_layout()
 
-# Robust Normal class indexing
-normal_idx = None
-for idx, c in enumerate(classes):
-    c_str = str(c).strip().lower()
-    if c_str in ['normal', 'benign', '0', 'clean', 'legitimate', 'safe', 'no_attack']:
-        normal_idx = idx
-        break
+has_labels = (y_train is not None and y_test is not None and len(classes) > 0)
 
-if normal_idx is None:
+if has_labels:
+    # Robust Normal class indexing
+    normal_idx = None
     for idx, c in enumerate(classes):
-        if 'norm' in str(c).strip().lower() or 'benign' in str(c).strip().lower():
+        c_str = str(c).strip().lower()
+        if c_str in ['normal', 'benign', '0', 'clean', 'legitimate', 'safe', 'no_attack']:
             normal_idx = idx
             break
 
-if normal_idx is None:
-    normal_idx = 0
+    if normal_idx is None:
+        for idx, c in enumerate(classes):
+            if 'norm' in str(c).strip().lower() or 'benign' in str(c).strip().lower():
+                normal_idx = idx
+                break
 
-X_train_normal = X_train[y_train == normal_idx]
-if len(X_train_normal) == 0:
-    st.warning("No baseline 'Normal' traffic flows detected in training set. Using general baseline for autoencoder.")
+    if normal_idx is None:
+        normal_idx = 0
+
+    X_train_normal = X_train[y_train == normal_idx]
+    if len(X_train_normal) == 0:
+        st.warning("No baseline 'Normal' traffic flows detected in training set. Using general baseline for autoencoder.")
+        X_train_normal = X_train
+
+    y_test_binary = (y_test != normal_idx).astype(int)
+else:
+    # Unlabeled telemetry stream
     X_train_normal = X_train
-
-y_test_binary = (y_test != normal_idx).astype(int)
+    y_test_binary = None
 
 # Autoencoder Configuration
 st.subheader("Autoencoder Parameters & Baseline Setup")
@@ -77,16 +85,18 @@ with c2:
     lr = st.select_slider("Learning Rate:", options=[0.005, 0.01, 0.02, 0.05], value=0.01)
     ae_epochs = st.slider("Training Epochs:", 10, 60, 35, 5)
 with c3:
-    st.caption("Training Normal Baseline Subsets:")
-    st.write(f"Normal Flows: **{X_train_normal.shape[0]:,} samples**")
+    st.caption("Training Baseline Subsets:")
+    st.write(f"Baseline Flows: **{X_train_normal.shape[0]:,} samples**")
     st.write(f"Testing Flows: **{X_test.shape[0]:,} samples**")
+    mode_text = "Supervised Normal Extraction" if has_labels else "Unsupervised Telemetry Ingestion"
+    st.caption(f"Mode: **{mode_text}**")
 with c4:
     st.markdown("<br>", unsafe_allow_html=True)
     train_ae_btn = st.button("Train Autoencoder", use_container_width=True)
 
 # Training Execution
 if train_ae_btn:
-    with st.spinner("Training Autoencoder on normal baseline network flows..."):
+    with st.spinner("Training Autoencoder neural network on network flows..."):
         ae = CyberAutoencoder(
             input_dim=X_train.shape[1],
             latent_dim=latent_dim,
@@ -107,11 +117,12 @@ if "autoencoder_eval" in st.session_state and st.session_state.autoencoder_eval 
     ae = st.session_state.autoencoder_model
     eval_res = st.session_state.autoencoder_eval
     
-    # Check for single-class dataset validation
-    is_single_class = len(np.unique(y_test_binary)) < 2
-    if is_single_class:
-        st.warning("Feature Importance and Classification Metrics require at least 2 target classes.")
-        st.info("ROC-AUC unavailable for single-class datasets.")
+    # Check for single-class dataset validation when labels are present
+    if has_labels and y_test_binary is not None:
+        is_single_class = len(np.unique(y_test_binary)) < 2
+        if is_single_class:
+            st.warning("Ground-truth evaluation requires at least 2 target classes (Normal + Attack).")
+            st.info("ROC-AUC unavailable for single-class datasets.")
     
     st.markdown("<br>", unsafe_allow_html=True)
     st.subheader("Decision Threshold Calibration")
@@ -136,36 +147,55 @@ if "autoencoder_eval" in st.session_state and st.session_state.autoencoder_eval 
         st.session_state.autoencoder_eval = eval_res
         st.rerun()
 
-    # Dynamic metric formatting directly from evaluation results
-    acc_disp = f"{eval_res['accuracy']*100:.2f}%"
-    prec_disp = f"{eval_res['precision']*100:.2f}%"
-    rec_disp = f"{eval_res['recall']*100:.2f}%"
-    f1_disp = f"{eval_res['f1']*100:.2f}%"
-    auc_disp = f"{eval_res['roc_auc']:.3f}" if eval_res.get('roc_auc') is not None else "N/A"
+    # Dynamic metric formatting
+    if eval_res.get("has_ground_truth", True) and eval_res.get("accuracy") is not None:
+        acc_disp = f"{eval_res['accuracy']*100:.2f}%"
+        prec_disp = f"{eval_res['precision']*100:.2f}%"
+        rec_disp = f"{eval_res['recall']*100:.2f}%"
+        f1_disp = f"{eval_res['f1']*100:.2f}%"
+        auc_disp = f"{eval_res['roc_auc']:.3f}" if eval_res.get('roc_auc') is not None else "N/A"
 
-    # Display Dynamic Metrics Cards
-    m1, m2, m3, m4, m5 = st.columns(5)
-    with m1:
-        render_metric_card("Accuracy", acc_disp, f"TP={eval_res['tp']}, TN={eval_res['tn']}", "green")
-    with m2:
-        render_metric_card("Precision", prec_disp, f"FP={eval_res['fp']}", "blue")
-    with m3:
-        render_metric_card("Recall", rec_disp, f"FN={eval_res['fn']}", "purple")
-    with m4:
-        render_metric_card("F1-Score", f1_disp, "Harmonic Mean", "orange")
-    with m5:
-        render_metric_card("ROC-AUC", auc_disp, "Area Under Curve", "blue")
+        m1, m2, m3, m4, m5 = st.columns(5)
+        with m1:
+            render_metric_card("Accuracy", acc_disp, f"TP={eval_res['tp']}, TN={eval_res['tn']}", "green")
+        with m2:
+            render_metric_card("Precision", prec_disp, f"FP={eval_res['fp']}", "blue")
+        with m3:
+            render_metric_card("Recall", rec_disp, f"FN={eval_res['fn']}", "purple")
+        with m4:
+            render_metric_card("F1-Score", f1_disp, "Harmonic Mean", "orange")
+        with m5:
+            render_metric_card("ROC-AUC", auc_disp, "Area Under Curve", "blue")
+    else:
+        # Unlabeled stream: Display factual anomaly metrics without faking accuracy
+        total_eval = len(eval_res["errors"])
+        norm_cnt = eval_res.get("normal_count", int(np.sum(eval_res["predictions"] == 0)))
+        anom_cnt = eval_res.get("anomaly_count", int(np.sum(eval_res["predictions"] == 1)))
+        anom_rate = (anom_cnt / total_eval * 100) if total_eval > 0 else 0.0
+
+        m1, m2, m3, m4 = st.columns(4)
+        with m1:
+            render_metric_card("Normal Packets", f"{norm_cnt:,}", f"{(norm_cnt/total_eval*100):.1f}% Clean Baseline", "green")
+        with m2:
+            render_metric_card("Anomalies Detected", f"{anom_cnt:,}", f"{anom_rate:.1f}% Suspicious Outliers", "red" if anom_cnt > 0 else "green")
+        with m3:
+            render_metric_card("Decision Threshold (τ)", f"{eval_res['threshold']:.4f}", "Reconstruction Cutoff", "blue")
+        with m4:
+            render_metric_card("Mode", "Unsupervised", "Ground-Truth Not Present", "purple")
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # Visualizations: Error Distribution & ROC Curve
+    # Visualizations: Error Distribution & ROC / Anomaly Breakdown
     col_err_plot, col_roc = st.columns([3, 2])
     
     with col_err_plot:
         n_show = min(350, len(eval_res["errors"]))
         indices = np.arange(n_show)
         sample_errors = eval_res["errors"][:n_show]
-        sample_labels = ["Normal" if y == 0 else "Anomaly / Attack" for y in y_test_binary[:n_show]]
+        if has_labels and y_test_binary is not None:
+            sample_labels = ["Normal" if y == 0 else "Anomaly / Attack" for y in y_test_binary[:n_show]]
+        else:
+            sample_labels = ["Anomaly" if e > curr_threshold else "Normal" for e in sample_errors]
         
         scatter_df = pd.DataFrame({
             "Packet Index": indices,
@@ -176,7 +206,7 @@ if "autoencoder_eval" in st.session_state and st.session_state.autoencoder_eval 
         fig_scatter = px.scatter(
             scatter_df, x="Packet Index", y="Reconstruction Error (MSE)",
             color="Class",
-            color_discrete_map={"Normal": "#16A34A", "Anomaly / Attack": "#DC2626"},
+            color_discrete_map={"Normal": "#16A34A", "Anomaly / Attack": "#DC2626", "Anomaly": "#DC2626"},
             title="Reconstruction Error per Packet vs Decision Threshold"
         )
         fig_scatter.add_hline(y=curr_threshold, line_dash="dash", line_color="#2563EB", annotation_text=f"Threshold (τ={curr_threshold:.4f})")
@@ -184,7 +214,7 @@ if "autoencoder_eval" in st.session_state and st.session_state.autoencoder_eval 
         st.plotly_chart(fig_scatter, use_container_width=True)
 
     with col_roc:
-        if eval_res.get("fpr") is not None and eval_res.get("tpr") is not None:
+        if has_labels and eval_res.get("fpr") is not None and eval_res.get("tpr") is not None:
             fig_roc = go.Figure()
             fig_roc.add_trace(go.Scatter(x=eval_res["fpr"], y=eval_res["tpr"], mode='lines', name=f'ROC Curve (AUC = {auc_disp})', line=dict(color='#2563EB', width=2.5)))
             fig_roc.add_trace(go.Scatter(x=[0, 1], y=[0, 1], mode='lines', name='Chance Level', line=dict(color='#94A3B8', dash='dash')))
@@ -196,6 +226,20 @@ if "autoencoder_eval" in st.session_state and st.session_state.autoencoder_eval 
             )
             st.plotly_chart(fig_roc, use_container_width=True)
         else:
-            st.info("ROC-AUC unavailable for single-class datasets.")
+            # Donut chart of Normal vs Anomaly
+            preds_all = eval_res["predictions"]
+            donut_df = pd.DataFrame({
+                "Status": ["Normal Baseline", "Suspicious Anomaly"],
+                "Count": [int(np.sum(preds_all == 0)), int(np.sum(preds_all == 1))]
+            })
+            fig_pie = px.pie(
+                donut_df, values="Count", names="Status",
+                hole=0.45,
+                title="Traffic Anomaly Distribution",
+                color="Status",
+                color_discrete_map={"Normal Baseline": "#16A34A", "Suspicious Anomaly": "#DC2626"}
+            )
+            fig_pie.update_layout(**plotly_layout)
+            st.plotly_chart(fig_pie, use_container_width=True)
 else:
     st.info("Click 'Train Autoencoder' above to build the baseline normal profile.")

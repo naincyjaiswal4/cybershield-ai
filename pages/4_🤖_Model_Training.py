@@ -41,7 +41,11 @@ if "preprocessed_data" not in st.session_state or st.session_state.preprocessed_
 data = st.session_state.preprocessed_data
 X_train, X_test = data['X_train'], data['X_test']
 y_train, y_test = data['y_train'], data['y_test']
-classes = data['target_classes']
+classes = data.get('target_classes', [])
+
+if y_train is None or len(classes) == 0:
+    st.info("ℹ️ The active dataset contains **unlabeled network telemetry** without ground-truth attack labels.\n\nSupervised machine learning algorithms (Random Forest, SVM, Decision Tree, Logistic Regression, XGBoost) require labeled targets. For unlabeled datasets, please use the **Unsupervised Autoencoder Anomaly Detection** module (Page 6) or automated anomaly scoring on Page 1.")
+    st.stop()
 
 hub = CyberMLModelHub()
 plotly_layout = get_plotly_theme_layout()
@@ -245,14 +249,15 @@ if st.session_state.get("model_metrics"):
         st.markdown("#### Detailed Per-Class Classification Report")
         report_data = res["classification_report"]
         report_rows = []
-        for cls in classes:
-            if cls in report_data:
+        for i, cls in enumerate(classes):
+            key = cls if cls in report_data else str(i) if str(i) in report_data else None
+            if key and isinstance(report_data.get(key), dict):
                 report_rows.append({
                     "Attack Category": cls,
-                    "Precision": f"{report_data[cls]['precision']*100:.1f}%",
-                    "Recall": f"{report_data[cls]['recall']*100:.1f}%",
-                    "F1-Score": f"{report_data[cls]['f1-score']*100:.1f}%",
-                    "Support": int(report_data[cls]['support'])
+                    "Precision": f"{report_data[key].get('precision', 0)*100:.1f}%",
+                    "Recall": f"{report_data[key].get('recall', 0)*100:.1f}%",
+                    "F1-Score": f"{report_data[key].get('f1-score', 0)*100:.1f}%",
+                    "Support": int(report_data[key].get('support', 0))
                 })
         st.dataframe(pd.DataFrame(report_rows), use_container_width=True)
 

@@ -61,7 +61,7 @@ render_header(
 # Presentation Mode Switcher
 col_pres_left, col_pres_right = st.columns([3, 1])
 with col_pres_right:
-    is_pres = st.toggle("🎯 Viva Presentation Mode", value=st.session_state.presentation_mode)
+    is_pres = st.toggle("🎯 Presentation Mode", value=st.session_state.presentation_mode)
     if is_pres != st.session_state.presentation_mode:
         st.session_state.presentation_mode = is_pres
         st.rerun()
@@ -122,7 +122,8 @@ with c_p1:
             1. Preprocess and extract optimal features from standardized benchmark telemetry (NSL-KDD & CICIDS2017).<br>
             2. Benchmark supervised ML classifiers (Random Forest, SVM, Decision Tree, Logistic Regression, XGBoost).<br>
             3. Implement Deep Neural Networks (MLP) and Unsupervised Autoencoders for anomaly detection.<br>
-            4. Provide Explainable AI (XAI) feature attribution and automated incident response mitigation playbooks.
+            4. Ingest multi-page cyber incident & threat intelligence PDF reports for automated IoC mining.
+            5. Provide Explainable AI (XAI) feature attribution and automated incident response mitigation playbooks.
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -135,7 +136,7 @@ with c_p2:
             • <b>Core Platform:</b> Python 3.10+, Streamlit<br>
             • <b>Machine Learning:</b> Scikit-learn, XGBoost, NumPy, Pandas<br>
             • <b>Deep Learning & Anomaly:</b> Multi-Layer Perceptron (MLP), Autoencoder Reconstruction Models<br>
-            • <b>Visualization & Reports:</b> Plotly Express, Seaborn, Matplotlib, FPDF2 (PDF Forensics)
+            • <b>PDF Intelligence & Reports:</b> PyMuPDF, pdfplumber, Plotly Express, Seaborn, FPDF2
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -146,7 +147,7 @@ with c_p2:
         <div style="font-size: 13px; color: #475569; line-height: 1.5;">
             • <b>Primary Dataset:</b> NSL-KDD (41 features + label + attack category taxonomy).<br>
             • <b>Cross-Evaluation:</b> CICIDS2017 flow telemetry dataset support.<br>
-            • <b>Key Capabilities:</b> 5-Class attack classification (Normal, DoS, Probe, R2L, U2R), 0-100 Threat Severity Engine, Explainable AI attribution, and real-time packet stream simulation.
+            • <b>Key Capabilities:</b> 5-Class attack classification, 0-100 Threat Severity Engine, Multi-Page Threat Intelligence PDF Processing & IoC Forensics, and real-time stream simulation.
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -158,7 +159,7 @@ st.subheader("System Architecture & Processing Workflow")
 st.markdown("""
 <div class="content-card" style="text-align: center; padding: 22px;">
     <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px;">
-        <span class="badge badge-low" style="padding: 8px 14px; font-size: 13px;">Data Collection</span>
+        <span class="badge badge-low" style="padding: 8px 14px; font-size: 13px;">Data & PDF Ingestion</span>
         <span style="color: #94A3B8; font-weight: bold;">➔</span>
         <span class="badge badge-low" style="padding: 8px 14px; font-size: 13px;">Data Preprocessing</span>
         <span style="color: #94A3B8; font-weight: bold;">➔</span>
@@ -223,7 +224,7 @@ with col_ch2:
 # Presentation Mode Summary Block (if active)
 if st.session_state.presentation_mode:
     st.markdown("<br>", unsafe_allow_html=True)
-    st.subheader("🎯 Viva Presentation Summary")
+    st.subheader("🎯 Presentation Summary")
     
     perf_summary = "Ensemble models achieve high F1-Score with low inference latency"
     if st.session_state.get("model_metrics"):
@@ -271,13 +272,13 @@ with st.sidebar:
         st.rerun()
 
     st.markdown("---")
-    st.markdown("### 🌓 Display Theme")
-    current_theme = get_current_theme()
-    new_theme = st.radio("Theme Mode:", ["Light Theme (Default)", "Dark Theme"], index=0 if current_theme == "light" else 1)
-    chosen = "light" if "Light" in new_theme else "dark"
-    if chosen != current_theme:
-        st.session_state.theme_mode = chosen
-        st.rerun()
+    st.markdown("""
+    <div style="background: rgba(30, 41, 59, 0.7); border: 1px solid #334155; border-radius: 6px; padding: 10px; margin-bottom: 12px;">
+        <div style="font-size: 11px; font-weight: 600; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.05em;">Console Theme</div>
+        <div style="font-size: 13px; font-weight: 600; color: #F8FAFC; margin-top: 2px;">🛡️ Cyber SOC Dark Navy</div>
+        <div style="font-size: 11px; color: #64748B; margin-top: 2px;">High-Contrast Presentation Mode Active</div>
+    </div>
+    """, unsafe_allow_html=True)
 
     st.markdown("---")
     st.caption("Final Year AIML Mini-Project | IT Department")

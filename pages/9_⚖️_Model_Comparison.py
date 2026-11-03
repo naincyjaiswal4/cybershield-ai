@@ -43,6 +43,10 @@ y_train, y_test = data['y_train'], data['y_test']
 classes = data['target_classes']
 plotly_layout = get_plotly_theme_layout()
 
+if y_train is None or len(classes) == 0:
+    st.info("ℹ️ Multi-model benchmarking requires ground-truth attack labels.\n\nThe active dataset contains unlabeled network telemetry. Supervised metrics (Accuracy, F1, Precision, Recall) cannot be computed without ground-truth labels. Please inspect anomalies using the Autoencoder on Page 6 or upload a labeled dataset.")
+    st.stop()
+
 # Train All Models for Full Benchmark Button
 if st.button("Train & Benchmark All 6 Model Architectures", use_container_width=True) or len(st.session_state.get("model_metrics", {})) < 2:
     hub = CyberMLModelHub()

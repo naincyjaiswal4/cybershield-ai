@@ -39,7 +39,11 @@ if "preprocessed_data" not in st.session_state or st.session_state.preprocessed_
 data = st.session_state.preprocessed_data
 X_train, X_test = data['X_train'], data['X_test']
 y_train, y_test = data['y_train'], data['y_test']
-classes = data['target_classes']
+classes = data.get('target_classes', [])
+
+if y_train is None or len(classes) == 0:
+    st.info("ℹ️ The active dataset contains **unlabeled network telemetry** without ground-truth attack labels.\n\nDeep Neural Network classification requires labeled targets. For unlabeled datasets, please use the **Unsupervised Autoencoder Anomaly Detection** module (Page 6) or automated anomaly scoring on Page 1.")
+    st.stop()
 plotly_layout = get_plotly_theme_layout()
 
 # Architecture & Training Hyperparameters
