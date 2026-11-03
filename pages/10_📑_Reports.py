@@ -113,10 +113,10 @@ with col_csv:
     df_export = df.copy()
     if "simulated_results" in st.session_state and len(st.session_state.simulated_results) > 0:
         sim_df = pd.DataFrame([{
-            "predicted_attack_category": r["classification"],
-            "prediction_confidence_pct": r["confidence"],
-            "threat_risk_score": r["risk_score"],
-            "threat_severity": r["severity"]
+            "predicted_attack_category": r.get("classification", "Normal"),
+            "prediction_confidence_pct": r.get("confidence", 90.0),
+            "threat_risk_score": r.get("risk_score", 10.0 if r.get("classification", "Normal") == "Normal" else 75.0),
+            "threat_severity": r.get("severity", "Low" if r.get("classification", "Normal") == "Normal" else "High")
         } for r in st.session_state.simulated_results])
         df_export = pd.concat([df_export.head(len(sim_df)).reset_index(drop=True), sim_df], axis=1)
         

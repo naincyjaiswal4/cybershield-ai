@@ -56,15 +56,16 @@ st.subheader("Model Configuration & Hyperparameters")
 col_m, col_p1, col_p2 = st.columns([1, 1, 1])
 
 with col_m:
+    # Full list of architectures preserved in code:
+    # ALL_SUPPORTED_ALGORITHMS = [
+    #     "Random Forest", "Support Vector Machine (SVM)", "Decision Tree",
+    #     "Logistic Regression", "XGBoost / Gradient Boosting"
+    # ]
     selected_model = st.selectbox(
         "Algorithm Architecture:",
         [
             "Random Forest",
-            "Support Vector Machine (SVM)",
-            "Decision Tree",
-            "Logistic Regression",
-            "XGBoost / Gradient Boosting",
-            "Train All Models Concurrently"
+            "Decision Tree"
         ]
     )
 
@@ -96,11 +97,10 @@ with col_p1:
 
 with col_p2:
     st.markdown("<br>", unsafe_allow_html=True)
-    col_btn1, col_btn2 = st.columns(2)
-    with col_btn1:
-        train_btn = st.button("Train Selected Model", use_container_width=True)
-    with col_btn2:
-        train_all_btn = st.button("Train All Models", use_container_width=True)
+    train_btn = st.button("Train Selected Model", use_container_width=True)
+    # Train All Models button hidden as requested; preserved below:
+    # train_all_btn = st.button("Train All Models", use_container_width=True)
+    train_all_btn = False
 
 # Train Process
 if train_btn or train_all_btn:
@@ -127,10 +127,18 @@ if st.session_state.get("model_metrics"):
     st.markdown("<br>", unsafe_allow_html=True)
     st.subheader("Model Evaluation Performance & Metrics")
     
+    # Filter available evaluated models to only Random Forest and Decision Tree as requested
+    ALLOWED_EVAL_MODELS = ["Random Forest", "Decision Tree"]
+    available_eval_models = [m for m in ALLOWED_EVAL_MODELS if m in metrics_hub]
+    if not available_eval_models:
+        available_eval_models = [m for m in metrics_hub.keys() if m in ALLOWED_EVAL_MODELS]
+    if not available_eval_models:
+        available_eval_models = list(metrics_hub.keys())[:1]
+
     display_model = st.selectbox(
         "Select Model to Inspect:",
-        options=list(metrics_hub.keys()),
-        index=len(metrics_hub) - 1
+        options=available_eval_models,
+        index=len(available_eval_models) - 1
     )
     
     res = metrics_hub[display_model]

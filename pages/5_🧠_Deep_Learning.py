@@ -2,6 +2,8 @@
 CyberShield AI - Deep Learning Threat Classification Module
 Implements a Deep Neural Network (MLP): Input Layer -> Dense(ReLU) -> Dropout -> Dense(ReLU) -> Dropout -> Softmax.
 Shows training/validation loss curves, accuracy trajectories, and multi-class probability scores.
+NOTE: Navigation entry temporarily hidden from visible sidebar for presentation.
+Code, architecture, and training routines remain 100% active and intact.
 """
 
 import streamlit as st

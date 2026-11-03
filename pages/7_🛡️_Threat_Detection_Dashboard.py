@@ -89,8 +89,15 @@ with c_ctrl3:
     st.markdown("<br>", unsafe_allow_html=True)
     run_sim_btn = st.button("Ingest & Analyze Network Stream", use_container_width=True)
 
-# Run Simulation
-if run_sim_btn or "simulated_results" not in st.session_state:
+# Run Simulation if requested or if results are missing / empty / incomplete
+needs_simulation = (
+    run_sim_btn
+    or "simulated_results" not in st.session_state
+    or not st.session_state.simulated_results
+    or any("severity" not in r or "risk_score" not in r for r in st.session_state.simulated_results)
+)
+
+if needs_simulation:
     sample_count = min(sim_batch_size, len(df))
     sampled_indices = np.random.choice(len(df), size=sample_count, replace=(len(df) < sim_batch_size))
     sample_df = df.iloc[sampled_indices].copy()
@@ -140,15 +147,30 @@ if run_sim_btn or "simulated_results" not in st.session_state:
         
     st.session_state.simulated_results = stream_records
 
-results = st.session_state.simulated_results
-filtered_results = [r for r in results if r["severity"] in filter_severity]
+results = st.session_state.get("simulated_results", [])
+
+# Guarantee each record has severity, risk_score, and color defensively
+for r in results:
+    if "severity" not in r or "risk_score" not in r:
+        c = r.get("classification", "Normal")
+        conf_raw = r.get("confidence", 80.0)
+        conf_val = conf_raw / 100.0 if conf_raw > 1.0 else conf_raw
+        r_info = calculate_risk_score(c, conf_val, r.get("raw_packet", {}))
+        r.setdefault("severity", r_info.get("severity", "Low"))
+        r.setdefault("risk_score", r_info.get("risk_score", 10.0))
+        r.setdefault("color", r_info.get("color", "#2563EB"))
+        r.setdefault("mitre_technique", r_info.get("mitre_technique", "T1071"))
+        if "alert" not in r:
+            r["alert"] = generate_threat_alert(r.get("raw_packet", {}), c, conf_val, r_info)
+
+filtered_results = [r for r in results if r.get("severity", "Low") in filter_severity]
 
 # Real-Time KPI Stats Strip
 total_p = len(results)
-safe_p = sum(1 for r in results if r["classification"] == "Normal")
+safe_p = sum(1 for r in results if r.get("classification") == "Normal")
 mal_p = total_p - safe_p
 threat_pct = (mal_p / total_p * 100) if total_p > 0 else 0.0
-avg_risk = np.mean([r["risk_score"] for r in results]) if total_p > 0 else 0.0
+avg_risk = np.mean([r.get("risk_score", 0.0) for r in results]) if total_p > 0 else 0.0
 
 st.markdown("<br>", unsafe_allow_html=True)
 k1, k2, k3, k4, k5 = st.columns(5)
@@ -161,7 +183,7 @@ with k3:
 with k4:
     render_metric_card("Avg Risk Score", f"{avg_risk:.1f} / 100", "Composite Threat Index", "orange" if avg_risk < 51 else "red")
 with k5:
-    crit_count = sum(1 for r in results if r["severity"] == "Critical")
+    crit_count = sum(1 for r in results if r.get("severity") == "Critical")
     render_metric_card("Critical Alerts", f"{crit_count}", "Immediate Action Req", "red")
 
 st.markdown("<br>", unsafe_allow_html=True)
@@ -169,7 +191,7 @@ st.markdown("<br>", unsafe_allow_html=True)
 # 1. Threat Severity Engine Breakdown (0-25 Low, 26-50 Medium, 51-75 High, 76-100 Critical)
 st.subheader("Threat Severity Engine & Risk Score Distribution")
 
-sev_counts = pd.Series([r["severity"] for r in results]).value_counts().to_dict()
+sev_counts = pd.Series([r.get("severity", "Low") for r in results]).value_counts().to_dict()
 sc1, sc2, sc3, sc4 = st.columns(4)
 
 with sc1:
@@ -253,9 +275,9 @@ col_trend, col_dist = st.columns([3, 2])
 with col_trend:
     timeline_df = pd.DataFrame({
         "Packet #": range(1, len(results) + 1),
-        "Threat Risk Score": [r["risk_score"] for r in results],
-        "Severity": [r["severity"] for r in results],
-        "Category": [r["classification"] for r in results]
+        "Threat Risk Score": [r.get("risk_score", 0.0) for r in results],
+        "Severity": [r.get("severity", "Low") for r in results],
+        "Category": [r.get("classification", "Normal") for r in results]
     })
     
     fig_timeline = px.line(
@@ -293,14 +315,14 @@ if filtered_results:
     table_rows = []
     for r in filtered_results:
         table_rows.append({
-            "Timestamp": r["timestamp"],
-            "Source IP": r["src_ip"],
-            "Destination IP:Port": f"{r['dst_ip']}:{r['dst_port']}",
-            "Protocol": r["protocol"],
-            "Category": r["classification"],
-            "Confidence": f"{r['confidence']}%",
-            "Severity": r["severity"],
-            "Risk Score": r["risk_score"],
-            "MITRE Technique": r["mitre_technique"]
+            "Timestamp": r.get("timestamp", ""),
+            "Source IP": r.get("src_ip", ""),
+            "Destination IP:Port": f"{r.get('dst_ip', '')}:{r.get('dst_port', '')}",
+            "Protocol": r.get("protocol", ""),
+            "Category": r.get("classification", ""),
+            "Confidence": f"{r.get('confidence', '')}%",
+            "Severity": r.get("severity", "Low"),
+            "Risk Score": r.get("risk_score", 0.0),
+            "MITRE Technique": r.get("mitre_technique", "")
         })
     st.dataframe(pd.DataFrame(table_rows), use_container_width=True)

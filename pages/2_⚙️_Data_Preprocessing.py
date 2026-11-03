@@ -63,8 +63,9 @@ with col2:
 
 with col3:
     enable_feat_selection = st.checkbox("Enable Feature Selection", value=True)
-    max_k = max(5, min(40, len(df.columns) - 1))
-    n_features = st.slider("Number of Top Features (k):", min_value=5, max_value=max_k, value=min(20, max_k), step=1) if enable_feat_selection else None
+    max_k = min(10, max(2, len(df.columns) - 1))
+    min_k = min(2, max_k)
+    n_features = st.slider("Number of Top Features (k):", min_value=min_k, max_value=max_k, value=max_k, step=1) if enable_feat_selection else None
 
 # Action Button
 if st.button("Execute Preprocessing Pipeline", use_container_width=True):

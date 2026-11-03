@@ -2,6 +2,8 @@
 CyberShield AI - Model Comparison & Benchmarking Hub
 Compares Random Forest, SVM, Decision Tree, Logistic Regression, XGBoost, and Deep Neural Networks.
 Automatically highlights the best performing model with multi-dimensional radar maps and leaderboard rankings.
+NOTE: Navigation entry temporarily hidden from visible sidebar for presentation.
+Code, architecture, and benchmarking routines remain 100% active and intact.
 """
 
 import streamlit as st

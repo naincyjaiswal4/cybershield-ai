@@ -57,6 +57,55 @@ def apply_cyber_theme():
             gap: 4px !important;
         }
 
+        /* ==========================================================================
+           PRESENTATION NAVIGATION CONFIGURATION:
+           Temporarily hide 'Deep Learning' and 'Model Comparison' pages from the
+           visible sidebar navigation as requested for presentation.
+           The underlying files (pages/5_🧠_Deep_Learning.py and pages/9_⚖️_Model_Comparison.py),
+           models, and backend logic remain 100% active and intact.
+           'Anomaly Detection' remains visible as requested.
+           ========================================================================== */
+        /* Deep Learning */
+        [data-testid="stSidebarNav"] li:has(a[href*="Deep_Learning"]),
+        [data-testid="stSidebarNav"] li:has(a[href*="deep_learning"]),
+        [data-testid="stSidebarNav"] li:has(a[href*="Deep-Learning"]),
+        [data-testid="stSidebarNav"] li:has(a[href*="deep-learning"]),
+        [data-testid="stSidebarNav"] li:has(a[href*="Deep%20Learning"]),
+        [data-testid="stSidebarNav"] [data-testid="stSidebarNavLinkContainer"]:has(a[href*="Deep_Learning"]),
+        [data-testid="stSidebarNav"] [data-testid="stSidebarNavLinkContainer"]:has(a[href*="deep_learning"]),
+        [data-testid="stSidebarNav"] [data-testid="stSidebarNavLinkContainer"]:has(a[href*="Deep-Learning"]),
+        [data-testid="stSidebarNav"] [data-testid="stSidebarNavLinkContainer"]:has(a[href*="deep-learning"]),
+        [data-testid="stSidebarNav"] [data-testid="stSidebarNavLinkContainer"]:has(a[href*="Deep%20Learning"]),
+        [data-testid="stSidebarNav"] a[href*="Deep_Learning"],
+        [data-testid="stSidebarNav"] a[href*="deep_learning"],
+        [data-testid="stSidebarNav"] a[href*="Deep-Learning"],
+        [data-testid="stSidebarNav"] a[href*="deep-learning"],
+        [data-testid="stSidebarNav"] a[href*="Deep%20Learning"],
+
+        /* Model Comparison */
+        [data-testid="stSidebarNav"] li:has(a[href*="Model_Comparison"]),
+        [data-testid="stSidebarNav"] li:has(a[href*="model_comparison"]),
+        [data-testid="stSidebarNav"] li:has(a[href*="Model-Comparison"]),
+        [data-testid="stSidebarNav"] li:has(a[href*="model-comparison"]),
+        [data-testid="stSidebarNav"] li:has(a[href*="Model%20Comparison"]),
+        [data-testid="stSidebarNav"] [data-testid="stSidebarNavLinkContainer"]:has(a[href*="Model_Comparison"]),
+        [data-testid="stSidebarNav"] [data-testid="stSidebarNavLinkContainer"]:has(a[href*="model_comparison"]),
+        [data-testid="stSidebarNav"] [data-testid="stSidebarNavLinkContainer"]:has(a[href*="Model-Comparison"]),
+        [data-testid="stSidebarNav"] [data-testid="stSidebarNavLinkContainer"]:has(a[href*="model-comparison"]),
+        [data-testid="stSidebarNav"] [data-testid="stSidebarNavLinkContainer"]:has(a[href*="Model%20Comparison"]),
+        [data-testid="stSidebarNav"] a[href*="Model_Comparison"],
+        [data-testid="stSidebarNav"] a[href*="model_comparison"],
+        [data-testid="stSidebarNav"] a[href*="Model-Comparison"],
+        [data-testid="stSidebarNav"] a[href*="model-comparison"],
+        [data-testid="stSidebarNav"] a[href*="Model%20Comparison"] {
+            display: none !important;
+            height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
+        }
+
         /* Inactive Navigation Links */
         [data-testid="stSidebarNavLink"],
         [data-testid="stSidebarNav"] a {

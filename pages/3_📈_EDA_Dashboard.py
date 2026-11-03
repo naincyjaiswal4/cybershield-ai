@@ -32,12 +32,11 @@ df = st.session_state.current_dataset
 plotly_layout = get_plotly_theme_layout()
 
 # Top Visual Overview Tabs
-tab_threats, tab_protocols, tab_correlations, tab_importance, tab_flows = st.tabs([
+# Feature Importance and Traffic Flow Metrics tabs are hidden as requested; keeping the other three tabs.
+tab_threats, tab_protocols, tab_correlations = st.tabs([
     "Attack Distribution",
     "Protocol & Services",
-    "Correlation Matrix",
-    "Feature Importance",
-    "Traffic Flow Metrics"
+    "Correlation Matrix"
 ])
 
 # 1. Attack Category Breakdown
@@ -155,8 +154,11 @@ with tab_correlations:
     else:
         st.info("Select at least 2 features to view the correlation heatmap.")
 
-# 4. Feature Importance Ranking
-with tab_importance:
+# 4. Feature Importance Ranking & 5. Traffic Flow Metrics
+# The following modules are preserved intact; hidden from visible EDA display as requested.
+SHOW_EXTENDED_EDA_TABS = False
+if SHOW_EXTENDED_EDA_TABS:
+    # 4. Feature Importance Ranking
     st.markdown("#### Random Forest Feature Importance Analysis")
     st.caption("Measures Gini impurity reduction across ensemble trees to identify primary predictive features.")
     
@@ -194,8 +196,7 @@ with tab_importance:
                 fig_imp.update_layout(showlegend=False)
                 st.plotly_chart(fig_imp, use_container_width=True)
 
-# 5. Traffic Flow Metrics
-with tab_flows:
+    # 5. Traffic Flow Metrics
     c1, c2 = st.columns(2)
     sample_df = df.sample(min(1000, len(df)), random_state=42) if len(df) > 0 else df
     
